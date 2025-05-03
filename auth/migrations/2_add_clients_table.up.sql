@@ -1,0 +1,2 @@
+-- This migration file is no longer needed as the clients table is created in the order service
+-- Migration file kept for version tracking purposes 
