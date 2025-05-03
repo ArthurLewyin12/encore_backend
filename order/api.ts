@@ -99,6 +99,24 @@ interface StreamParams {
   restaurant_id: string;
 }
 
+interface OrderNotification {
+  order_id: string;
+  status: string;
+  message: string;
+  created_at: Date;
+}
+
+interface Payment {
+  id: string;
+  order_id: string;
+  amount: number;
+  status: "pending" | "completed" | "failed" | "refunded";
+  payment_method: string;
+  transaction_id?: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
 // Create a new order
 export const create = api(
   { method: "POST", expose: true },
@@ -371,5 +389,106 @@ export const getRestaurantReviews = api(
     }
 
     return { reviews: result };
+  }
+);
+
+// Get order notifications
+export const getOrderNotifications = api(
+  { method: "GET", expose: true, path: "/orders/:id/notifications" },
+  async (params: { id: string }): Promise<{ notifications: OrderNotification[] }> => {
+    const notifications = await db.query<OrderNotification>`
+      SELECT 
+        order_id,
+        status,
+        CASE 
+          WHEN status = 'pending' THEN 'Votre commande a été reçue'
+          WHEN status = 'preparing' THEN 'Votre commande est en préparation'
+          WHEN status = 'ready' THEN 'Votre commande est prête'
+          WHEN status = 'delivered' THEN 'Votre commande a été livrée'
+          WHEN status = 'cancelled' THEN 'Votre commande a été annulée'
+          ELSE 'Statut de commande mis à jour'
+        END as message,
+        created_at
+      FROM order_status_history
+      WHERE order_id = ${params.id}
+      ORDER BY created_at DESC
+    `;
+
+    const result: OrderNotification[] = [];
+    for await (const notification of notifications) {
+      result.push(notification);
+    }
+
+    return { notifications: result };
+  }
+);
+
+// Process payment for an order
+export const processPayment = api(
+  { method: "POST", expose: true, path: "/orders/:id/payment" },
+  async (params: { id: string; payment_method: string }): Promise<Payment> => {
+    // Get order details
+    const order = await db.queryRow<{ total_amount: number }>`
+      SELECT total_amount
+      FROM orders
+      WHERE id = ${params.id}
+    `;
+
+    if (!order) {
+      throw APIError.notFound("Order not found");
+    }
+
+    // In a real implementation, this would integrate with a payment processor
+    // For now, we'll simulate a successful payment
+    const payment = await db.queryRow<Payment>`
+      INSERT INTO payments (
+        order_id,
+        amount,
+        status,
+        payment_method,
+        transaction_id
+      )
+      VALUES (
+        ${params.id},
+        ${order.total_amount},
+        'completed',
+        ${params.payment_method},
+        ${`tx_${Date.now()}`}
+      )
+      RETURNING *
+    `;
+
+    if (!payment) {
+      throw APIError.internal("Failed to process payment");
+    }
+
+    // Update order status to paid
+    await db.exec`
+      UPDATE orders
+      SET status = 'paid'
+      WHERE id = ${params.id}
+    `;
+
+    return payment;
+  }
+);
+
+// Get payment details for an order
+export const getPaymentDetails = api(
+  { method: "GET", expose: true, path: "/orders/:id/payment" },
+  async (params: { id: string }): Promise<Payment> => {
+    const payment = await db.queryRow<Payment>`
+      SELECT *
+      FROM payments
+      WHERE order_id = ${params.id}
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+
+    if (!payment) {
+      throw APIError.notFound("Payment not found");
+    }
+
+    return payment;
   }
 ); 

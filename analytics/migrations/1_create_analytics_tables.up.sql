@@ -32,6 +32,39 @@ CREATE TABLE order_processing_times (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE daily_sales (
+    id BIGSERIAL PRIMARY KEY,
+    restaurant_id TEXT NOT NULL,
+    date DATE NOT NULL,
+    total_orders INTEGER NOT NULL,
+    total_revenue DECIMAL(10,2) NOT NULL,
+    average_order_value DECIMAL(10,2) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE menu_item_analytics (
+    id BIGSERIAL PRIMARY KEY,
+    restaurant_id TEXT NOT NULL,
+    menu_item_id TEXT NOT NULL,
+    date DATE NOT NULL,
+    quantity_sold INTEGER NOT NULL,
+    total_revenue DECIMAL(10,2) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE client_analytics (
+    id BIGSERIAL PRIMARY KEY,
+    restaurant_id TEXT NOT NULL,
+    client_id TEXT NOT NULL,
+    date DATE NOT NULL,
+    total_orders INTEGER NOT NULL,
+    total_spent DECIMAL(10,2) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX idx_daily_restaurant_metrics_restaurant_date ON daily_restaurant_metrics(restaurant_id, date);
 CREATE INDEX idx_daily_menu_item_metrics_restaurant_date ON daily_menu_item_metrics(restaurant_id, date);
-CREATE INDEX idx_order_processing_times_restaurant ON order_processing_times(restaurant_id); 
+CREATE INDEX idx_order_processing_times_restaurant ON order_processing_times(restaurant_id);
+CREATE UNIQUE INDEX idx_daily_sales_unique ON daily_sales (restaurant_id, date);
+CREATE UNIQUE INDEX idx_menu_item_analytics_unique ON menu_item_analytics (restaurant_id, menu_item_id, date);
+CREATE UNIQUE INDEX idx_client_analytics_unique ON client_analytics (restaurant_id, client_id, date); 

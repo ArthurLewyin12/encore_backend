@@ -75,6 +75,15 @@ interface MenuItemOptionsResponse {
   options: MenuItemOption[];
 }
 
+interface Promotion {
+  id: string;
+  menu_item_id: string;
+  discount_percentage: number;
+  start_date: Date;
+  end_date: Date;
+  is_active: boolean;
+}
+
 // Create a new menu category
 export const createCategory = api(
   { method: "POST", expose: true, path: "/categories" },
@@ -190,5 +199,57 @@ export const getMenuItemOptions = api(
     }
     
     return { options: result };
+  }
+);
+
+// Create a promotion for a menu item
+export const createPromotion = api(
+  { method: "POST", expose: true, path: "/menu-items/:item_id/promotions" },
+  async (params: { item_id: string } & Omit<Promotion, "id" | "menu_item_id" | "is_active">): Promise<Promotion> => {
+    const promotion = await db.queryRow<Promotion>`
+      INSERT INTO promotions (
+        menu_item_id,
+        discount_percentage,
+        start_date,
+        end_date,
+        is_active
+      )
+      VALUES (
+        ${params.item_id},
+        ${params.discount_percentage},
+        ${params.start_date},
+        ${params.end_date},
+        true
+      )
+      RETURNING *
+    `;
+
+    if (!promotion) {
+      throw APIError.internal("Failed to create promotion");
+    }
+
+    return promotion;
+  }
+);
+
+// Get active promotions for a restaurant
+export const getActivePromotions = api(
+  { method: "GET", expose: true, path: "/restaurants/:restaurant_id/promotions" },
+  async (params: { restaurant_id: string }): Promise<{ promotions: Promotion[] }> => {
+    const promotions = await db.query<Promotion>`
+      SELECT p.*
+      FROM promotions p
+      JOIN menu_items mi ON mi.id = p.menu_item_id
+      WHERE mi.restaurant_id = ${params.restaurant_id}
+      AND p.is_active = true
+      AND CURRENT_TIMESTAMP BETWEEN p.start_date AND p.end_date
+    `;
+
+    const result: Promotion[] = [];
+    for await (const promotion of promotions) {
+      result.push(promotion);
+    }
+
+    return { promotions: result };
   }
 ); 
